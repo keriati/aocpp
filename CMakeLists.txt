@@ -3,6 +3,6 @@ project(aocpp)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 
 add_executable(AoC2023d16 2023/16/day16.cpp)
-target_compile_options(AoC2023d16 PRIVATE -O3)

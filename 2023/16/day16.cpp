@@ -7,6 +7,7 @@ using namespace std;
 
 //#define FILE "example.txt"
 #define FILE "input.txt"
+
 int PART = 2;
 
 using LaserMap = vector<vector<char>>;
@@ -14,7 +15,7 @@ using Position = tuple<int, int, int, int>;
 
 void readToVector(const string &fileName, LaserMap &map);
 bool isInvalid(Position &position, const LaserMap &map);
-void clearTiles(bool *tiles, int totalSize);
+void resetBoolArray(bool *tiles, int totalSize);
 int shoot(const Position &position, const LaserMap &map);
 void runPart1();
 void runPart2();
@@ -27,12 +28,13 @@ int main(int argc, char *argv[]) {
 
 void runPart1() {
     cout << "AoC 2023 Day 16 Part 1" << endl;
+    auto start = chrono::high_resolution_clock::now();
+
     LaserMap map;
+
     map.reserve(111);
 
     readToVector(FILE, map);
-
-    auto start = chrono::high_resolution_clock::now();
 
     Position position = {0, 0, 1, 0};
 
@@ -47,12 +49,12 @@ void runPart1() {
 
 void runPart2() {
     cout << "AoC 2023 Day 16 Part 2" << endl;
+    auto start = chrono::high_resolution_clock::now();
 
     LaserMap map;
 
     readToVector(FILE, map);
 
-    auto start = chrono::high_resolution_clock::now();
 
     unsigned long result = 0;
     unsigned long rows = map.size();
@@ -93,25 +95,19 @@ void runPart2() {
     cout << "Elapsed: " << elapsed.count() << " ms" << endl;
 }
 
-void clearTiles(bool *tiles, int totalSize) {
-    std::fill(tiles, tiles + totalSize, false);
+void resetBoolArray(bool *tiles, int totalSize) {
+    fill(tiles, tiles + totalSize, false);
 }
 
 int shoot(const Position &position, const LaserMap &map) {
     bool visitedTiles[map.size()][map[0].size()];
-    clearTiles(&visitedTiles[0][0], map.size() * map[0].size());
+    resetBoolArray(&visitedTiles[0][0], map.size() * map[0].size());
 
     queue<Position> q;
+
     bool visitedStates[map.size()][map[0].size()][3][3];
-    for (int i = 0; i < map.size(); ++i) {
-        for (int j = 0; j < map.size(); ++j) {
-            for (int k = 0; k < 3; ++k) {
-                for (int l = 0; l < 3; ++l) {
-                    visitedStates[i][j][k][l] = false;
-                }
-            }
-        }
-    }
+    resetBoolArray(&visitedStates[0][0][0][0], map.size() * map[0].size() * 3 * 3);
+
     auto [sx, sy, sdx, sdy] = position;
     visitedStates[sx][sy][sdx][sdy] = true;
 
@@ -129,9 +125,9 @@ int shoot(const Position &position, const LaserMap &map) {
         nextPositions[0] = {-1, -1, 0, 0};
         nextPositions[1] = {-1, -1, 0, 0};
 
-        if (pos == '.') {
-            nextPositions[0] = {x + dx, y + dy, dx, dy};
-        }
+        if (pos == '.') nextPositions[0] = {x + dx, y + dy, dx, dy};
+        if (pos == '\\') nextPositions[0] = {x + dy, y + dx, dy, dx};
+        if (pos == '/') nextPositions[0] = {x - dy, y - dx, -dy, -dx};
 
         if (pos == '|') {
             if (dx != 0) {
@@ -151,27 +147,15 @@ int shoot(const Position &position, const LaserMap &map) {
             }
         }
 
-        if (pos == '\\') {
-            int ndy = dx;
-            int ndx = dy;
-            nextPositions[0] = {x + ndx, y + ndy, ndx, ndy};
-        }
-
-        if (pos == '/') {
-            int ndx = -dy;
-            int ndy = -dx;
-            nextPositions[0] = {x + ndx, y + ndy, ndx, ndy};
-        }
-
         for (auto np: nextPositions) {
-            if (isInvalid(np, map)) {
-                continue;
-            }
-            auto [nx, ny, nndx, nndy] = np;
-            if (!visitedStates[nx][ny][nndx + 1][nndy + 1]) {
-                visitedStates[nx][ny][nndx + 1][nndy + 1] = true;
-                q.emplace(np);
-            }
+            if (isInvalid(np, map)) continue;
+
+            auto [nx, ny, ndx, ndy] = np;
+
+            if (visitedStates[nx][ny][ndx + 1][ndy + 1]) continue;
+
+            visitedStates[nx][ny][ndx + 1][ndy + 1] = true;
+            q.emplace(np);
         }
     }
 

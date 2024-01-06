@@ -1,7 +1,6 @@
 #include <fstream>
 #include <iostream>
 #include <queue>
-#include <unordered_set>
 #include <vector>
 
 using namespace std;
@@ -13,24 +12,10 @@ int PART = 2;
 using LaserMap = vector<vector<char>>;
 using Position = tuple<int, int, int, int>;
 
-struct pair_hash {
-    inline std::size_t operator()(const std::pair<int, int> &v) const {
-        return v.first * 31 + v.second;
-    }
-};
-
-struct pos_hash {
-    inline std::size_t operator()(const Position &v) const {
-        auto [x, y, dx, dy] = v;
-        return x * 31 + y * 37 + dx * 43 + dy * 47;
-    }
-};
-
 void readToVector(const string &fileName, LaserMap &map);
-void printMap(LaserMap &map, const unordered_set<pair<int, int>, pair_hash> &visited);
 bool isInvalid(Position &position, const LaserMap &map);
-
-void shoot(const Position &position, const LaserMap &map, unordered_set<pair<int, int>, pair_hash> &visitedTiles);
+void clearTiles(bool *tiles, int totalSize);
+int shoot(const Position &position, const LaserMap &map);
 void runPart1();
 void runPart2();
 
@@ -51,16 +36,12 @@ void runPart1() {
 
     Position position = {0, 0, 1, 0};
 
-    unordered_set<pair<int, int>, pair_hash> visitedTiles;
-
-    shoot(position, map, visitedTiles);
+    int tilesCount = shoot(position, map);
 
     auto finish = chrono::high_resolution_clock::now();
     chrono::duration<double, milli> elapsed = finish - start;
 
-    printMap(map, visitedTiles);
-
-    cout << "Result: " << visitedTiles.size() << endl;
+    cout << "Result: " << tilesCount << endl;
     cout << "Elapsed: " << elapsed.count() << " ms" << endl;
 };
 
@@ -76,52 +57,33 @@ void runPart2() {
     unsigned long result = 0;
     unsigned long rows = map.size();
     unsigned long cols = map[0].size();
-    unordered_set<pair<int, int>, pair_hash> visitedTiles;
 
     for (unsigned long x = 0; x < cols; ++x) {
-        visitedTiles.clear();
         Position position = {x, 0, 0, 1};
 
-        shoot(position, map, visitedTiles);
-
-        if (visitedTiles.size() > result) {
-            result = visitedTiles.size();
-        }
+        int tileCount = shoot(position, map);
+        result = (tileCount > result) ? tileCount : result;
     }
 
     for (unsigned long x = 0; x < cols; ++x) {
-        visitedTiles.clear();
         Position position = {x, rows - 1, 0, -1};
 
-        shoot(position, map, visitedTiles);
-
-        if (visitedTiles.size() > result) {
-            result = visitedTiles.size();
-        }
+        int tileCount = shoot(position, map);
+        result = (tileCount > result) ? tileCount : result;
     }
 
-
     for (unsigned long y = 0; y < rows; ++y) {
-        visitedTiles.clear();
         Position position = {0, y, 1, 0};
 
-        shoot(position, map, visitedTiles);
-
-        if (visitedTiles.size() > result) {
-            result = visitedTiles.size();
-        }
+        int tileCount = shoot(position, map);
+        result = (tileCount > result) ? tileCount : result;
     }
 
-
     for (unsigned long y = 0; y < rows; ++y) {
-        visitedTiles.clear();
         Position position = {cols - 1, y, -1, 0};
 
-        shoot(position, map, visitedTiles);
-
-        if (visitedTiles.size() > result) {
-            result = visitedTiles.size();
-        }
+        int tileCount = shoot(position, map);
+        result = (tileCount > result) ? tileCount : result;
     }
 
     auto finish = chrono::high_resolution_clock::now();
@@ -131,9 +93,28 @@ void runPart2() {
     cout << "Elapsed: " << elapsed.count() << " ms" << endl;
 }
 
-void shoot(const Position &position, const LaserMap &map, unordered_set<pair<int, int>, pair_hash> &visitedTiles) {
+void clearTiles(bool *tiles, int totalSize) {
+    std::fill(tiles, tiles + totalSize, false);
+}
+
+int shoot(const Position &position, const LaserMap &map) {
+    bool visitedTiles[map.size()][map[0].size()];
+    clearTiles(&visitedTiles[0][0], map.size() * map[0].size());
+
     queue<Position> q;
-    unordered_set<Position, pos_hash> visitedStates;
+    bool visitedStates[map.size()][map[0].size()][3][3];
+    for (int i = 0; i < map.size(); ++i) {
+        for (int j = 0; j < map.size(); ++j) {
+            for (int k = 0; k < 3; ++k) {
+                for (int l = 0; l < 3; ++l) {
+                    visitedStates[i][j][k][l] = false;
+                }
+            }
+        }
+    }
+    auto [sx, sy, sdx, sdy] = position;
+    visitedStates[sx][sy][sdx][sdy] = true;
+
     q.push(position);
     Position nextPositions[2];
 
@@ -141,7 +122,7 @@ void shoot(const Position &position, const LaserMap &map, unordered_set<pair<int
         auto [x, y, dx, dy] = q.front();
         q.pop();
 
-        visitedTiles.insert({x, y});
+        visitedTiles[y][x] = true;
 
         char pos = map[y][x];
 
@@ -186,13 +167,24 @@ void shoot(const Position &position, const LaserMap &map, unordered_set<pair<int
             if (isInvalid(np, map)) {
                 continue;
             }
-            if (visitedStates.find(np) == visitedStates.end()) {
-                visitedStates.insert(np);
+            auto [nx, ny, nndx, nndy] = np;
+            if (!visitedStates[nx][ny][nndx + 1][nndy + 1]) {
+                visitedStates[nx][ny][nndx + 1][nndy + 1] = true;
                 q.emplace(np);
             }
         }
     }
+
+    int result = 0;
+
+    for (int i = 0; i < map.size(); ++i) {
+        for (int j = 0; j < map[0].size(); ++j) {
+            if (visitedTiles[i][j]) result++;
+        }
+    }
+    return result;
 }
+
 bool isInvalid(Position &position, const LaserMap &map) {
     auto [x, y, dx, dy] = position;
     unsigned long rows = map.size();
@@ -219,14 +211,4 @@ void readToVector(const string &fileName, LaserMap &map) {
         map.push_back(row);
     }
     file.close();
-}
-
-void printMap(LaserMap &map, const unordered_set<pair<int, int>, pair_hash> &visited) {
-    for (int y = 0; y < map.size(); ++y) {
-        auto row = map[y];
-        for (int x = 0; x < row.size(); ++x) {
-            cout << (visited.find({x, y}) != visited.end() ? 'o' : row[x]);
-        }
-        cout << endl;
-    }
 }

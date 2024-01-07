@@ -1,3 +1,4 @@
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <queue>
@@ -7,18 +8,15 @@ using namespace std;
 
 //#define FILE "example.txt"
 #define FILE "input.txt"
-
 int PART = 2;
 
-using LaserMap = vector<vector<char>>;
 using Position = tuple<int, int, int, int>;
 
-void readToVector(const string &fileName, LaserMap &map);
-bool isInvalid(Position &position, const LaserMap &map);
-void resetBoolArray(bool *tiles, int totalSize);
-int shoot(const Position &position, const LaserMap &map);
 void runPart1();
 void runPart2();
+int shoot(const Position &position, char **map, int rows, int cols);
+void parseMap(char **map, int rows, int cols);
+bool isInvalid(Position &position, int rows, int cols);
 
 int main(int argc, char *argv[]) {
     if (PART == 1) runPart1();
@@ -30,18 +28,24 @@ void runPart1() {
     cout << "AoC 2023 Day 16 Part 1" << endl;
     auto start = chrono::high_resolution_clock::now();
 
-    LaserMap map;
+    int rows = 110;
+    int cols = 110;
 
-    map.reserve(111);
-
-    readToVector(FILE, map);
+    char **map = new char *[rows];
+    parseMap(map, rows, cols);
 
     Position position = {0, 0, 1, 0};
 
-    int tilesCount = shoot(position, map);
+    int tilesCount = shoot(position, map, rows, cols);
 
     auto finish = chrono::high_resolution_clock::now();
     chrono::duration<double, milli> elapsed = finish - start;
+
+    for (int i = 0; i < rows; i++) {
+        delete[] map[i];
+    }
+
+    delete[] map;
 
     cout << "Result: " << tilesCount << endl;
     cout << "Elapsed: " << elapsed.count() << " ms" << endl;
@@ -51,42 +55,47 @@ void runPart2() {
     cout << "AoC 2023 Day 16 Part 2" << endl;
     auto start = chrono::high_resolution_clock::now();
 
-    LaserMap map;
+    int rows = 110;
+    int cols = 110;
 
-    readToVector(FILE, map);
-
+    char **map = new char *[rows];
+    parseMap(map, rows, cols);
 
     unsigned long result = 0;
-    unsigned long rows = map.size();
-    unsigned long cols = map[0].size();
 
     for (unsigned long x = 0; x < cols; ++x) {
         Position position = {x, 0, 0, 1};
 
-        int tileCount = shoot(position, map);
+        int tileCount = shoot(position, map, rows, cols);
         result = (tileCount > result) ? tileCount : result;
     }
 
     for (unsigned long x = 0; x < cols; ++x) {
         Position position = {x, rows - 1, 0, -1};
 
-        int tileCount = shoot(position, map);
+        int tileCount = shoot(position, map, rows, cols);
         result = (tileCount > result) ? tileCount : result;
     }
 
     for (unsigned long y = 0; y < rows; ++y) {
         Position position = {0, y, 1, 0};
 
-        int tileCount = shoot(position, map);
+        int tileCount = shoot(position, map, rows, cols);
         result = (tileCount > result) ? tileCount : result;
     }
 
     for (unsigned long y = 0; y < rows; ++y) {
         Position position = {cols - 1, y, -1, 0};
 
-        int tileCount = shoot(position, map);
+        int tileCount = shoot(position, map, rows, cols);
         result = (tileCount > result) ? tileCount : result;
     }
+
+    for (int i = 0; i < rows; i++) {
+        delete[] map[i];
+    }
+
+    delete[] map;
 
     auto finish = chrono::high_resolution_clock::now();
     chrono::duration<double, milli> elapsed = finish - start;
@@ -95,18 +104,40 @@ void runPart2() {
     cout << "Elapsed: " << elapsed.count() << " ms" << endl;
 }
 
-void resetBoolArray(bool *tiles, int totalSize) {
-    fill(tiles, tiles + totalSize, false);
+void parseMap(char **map, int rows, int cols) {
+    for (int i = 0; i < rows; i++) {
+        map[i] = new char[cols];
+    }
+
+    ifstream file(FILE);
+
+    if (!file.is_open()) {
+        cout << "Can't open: " << FILE << endl;
+        exit(1);
+    }
+
+    string line;
+    int mr = 0;
+
+    while (getline(file, line)) {
+        int mc = 0;
+        for (char &c: line) {
+            map[mr][mc] = c;
+            mc++;
+        }
+        mr++;
+    }
+    file.close();
 }
 
-int shoot(const Position &position, const LaserMap &map) {
-    bool visitedTiles[map.size()][map[0].size()];
-    resetBoolArray(&visitedTiles[0][0], map.size() * map[0].size());
+int shoot(const Position &position, char **map, int rows, int cols) {
+    bool visitedTiles[rows][cols];
+    memset(visitedTiles, 0, sizeof(visitedTiles));
 
     queue<Position> q;
 
-    bool visitedStates[map.size()][map[0].size()][3][3];
-    resetBoolArray(&visitedStates[0][0][0][0], map.size() * map[0].size() * 3 * 3);
+    bool visitedStates[rows][cols][3][3];
+    memset(visitedStates, 0, sizeof(visitedStates));
 
     auto [sx, sy, sdx, sdy] = position;
     visitedStates[sx][sy][sdx][sdy] = true;
@@ -148,7 +179,7 @@ int shoot(const Position &position, const LaserMap &map) {
         }
 
         for (auto np: nextPositions) {
-            if (isInvalid(np, map)) continue;
+            if (isInvalid(np, rows, cols)) continue;
 
             auto [nx, ny, ndx, ndy] = np;
 
@@ -161,38 +192,16 @@ int shoot(const Position &position, const LaserMap &map) {
 
     int result = 0;
 
-    for (int i = 0; i < map.size(); ++i) {
-        for (int j = 0; j < map[0].size(); ++j) {
+    for (int i = 0; i < rows; ++i) {
+        for (int j = 0; j < cols; ++j) {
             if (visitedTiles[i][j]) result++;
         }
     }
+
     return result;
 }
 
-bool isInvalid(Position &position, const LaserMap &map) {
+bool isInvalid(Position &position, int rows, int cols) {
     auto [x, y, dx, dy] = position;
-    unsigned long rows = map.size();
-    unsigned long cols = map[0].size();
     return x < 0 || y < 0 || x >= cols || y >= rows;
-}
-
-
-void readToVector(const string &fileName, LaserMap &map) {
-    ifstream file(fileName);
-
-    if (!file.is_open()) {
-        cout << "Can't open: " << FILE << endl;
-        exit(1);
-    }
-
-    string line;
-    while (getline(file, line)) {
-        vector<char> row;
-        row.reserve(111);
-        for (char &c: line) {
-            row.push_back(c);
-        }
-        map.push_back(row);
-    }
-    file.close();
 }

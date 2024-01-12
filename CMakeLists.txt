@@ -6,3 +6,4 @@ set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 
 add_executable(AoC2023d16 2023/16/day16.cpp)
+add_executable(AoC2023d17 2023/17/day17.cpp)

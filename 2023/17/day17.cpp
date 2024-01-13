@@ -9,38 +9,35 @@ using namespace std;
 // #define FILE "example.txt"
 // int ROWS = 13;
 // int COLS = 13;
-//
+
 #define FILE "input.txt"
-int ROWS = 141;
-int COLS = 141;
+constexpr int ROWS = 141;
+constexpr int COLS = 141;
 
-int PART = 2;
-
-void parseMap(std::unique_ptr<std::unique_ptr<int[]>[]> &map, int rows, int cols);
-int getLeastHeatLoss(const __unique_if<std::__1::unique_ptr<int[]>[]>::__unique_array_unknown_bound &map, int minSteps = 1, int maxSteps = 3);
+void printMap(const std::unique_ptr<std::unique_ptr<int[]>[]> &map);
+void parseMap(std::unique_ptr<std::unique_ptr<int[]>[]> &map);
+int getLeastHeatLoss(const std::unique_ptr<std::unique_ptr<int[]>[]> &map, int minSteps = 1, int maxSteps = 3);
 void runPart1();
 void runPart2();
 
 struct Step {
     int x;
     int y;
-    int vx;
-    int vy;
+    int dir;
     int heatLoss;
     int steps;
-    int prio;
 };
+
+int N = 1;
+int E = 2;
+int S = 3;
+int W = 4;
 
 int main(int argc, char *argv[]) {
     runPart1();
     runPart2();
-    // if (PART == 1) runPart1();
-    // if (PART == 2) runPart2();
     return 0;
 }
-
-
-void printMap(const __unique_if<std::__1::unique_ptr<int[]>[]>::__unique_array_unknown_bound &map);
 
 void runPart1() {
     cout << "AoC 2023 Day 17 Part 1" << endl;
@@ -51,7 +48,7 @@ void runPart1() {
         map[i] = std::make_unique<int[]>(COLS);
     }
 
-    parseMap(map, ROWS, COLS);
+    parseMap(map);
 
     // printMap(map);
 
@@ -64,7 +61,6 @@ void runPart1() {
     cout << "Elapsed: " << elapsed.count() << " ms" << endl;
 };
 
-
 void runPart2() {
     cout << "AoC 2023 Day 17 Part 2" << endl;
     const auto start = chrono::high_resolution_clock::now();
@@ -74,7 +70,7 @@ void runPart2() {
         map[i] = std::make_unique<int[]>(COLS);
     }
 
-    parseMap(map, ROWS, COLS);
+    parseMap(map);
 
     // printMap(map);
 
@@ -87,7 +83,7 @@ void runPart2() {
     cout << "Elapsed: " << elapsed.count() << " ms" << endl;
 }
 
-void printMap(const __unique_if<std::__1::unique_ptr<int[]>[]>::__unique_array_unknown_bound &map) {
+void printMap(const std::unique_ptr<std::unique_ptr<int[]>[]> &map) {
     cout << "----" << endl;
 
     for (int y = 0; y < ROWS; ++y) {
@@ -101,27 +97,25 @@ void printMap(const __unique_if<std::__1::unique_ptr<int[]>[]>::__unique_array_u
 
 
 struct CompareSteps {
-    bool operator()(Step const &s1, Step const &s2) const {
-        return s1.prio >= s2.prio;
+    bool operator()(Step const &a, Step const &b) const {
+        return b.heatLoss < a.heatLoss;
     }
 };
 
 int cacheKey(Step &step) {
-    auto &[x, y, vx, vy, heatLoss, steps, prio] = step;
+    auto &[x, y, dir, heatLoss, steps] = step;
 
-    // return "" + to_string(x) + "," + to_string(y) + "," + to_string(steps);
-    // return "" + to_string(x) + "," + to_string(y) + "," + to_string(vx) + "," + to_string(vy) + "," + to_string(steps);
-    // return (x << 16) | (y << 8) | heatLoss;
-    return ((((((x * 1000 + y) * 10) + vx + 2) * 10) + vy + 2) * 1000) + steps;
+    // return (x << (8 + 3 + 4)) | (y << (3 + 4)) | (dir << 4) | steps; // safer
+    return (((x + 1) * 37 + (y + 1) * 17) * 5 + dir) * 9 + steps;
 }
 
 
-int getLeastHeatLoss(const __unique_if<std::__1::unique_ptr<int[]>[]>::__unique_array_unknown_bound &map, const int minSteps, const int maxSteps) {
-    const int endX = COLS - 1;
-    const int endY = ROWS - 1;
+int getLeastHeatLoss(const std::unique_ptr<std::unique_ptr<int[]>[]> &map, const int minSteps, const int maxSteps) {
+    constexpr int endX = COLS - 1;
+    constexpr int endY = ROWS - 1;
 
-    Step startingEast = {0, 0, 1, 0, 0, 0, 0};
-    Step staringSouth = {0, 0, 0, 1, 0, 0, 0};
+    Step startingEast = {0, 0, E, 0, 0};
+    Step staringSouth = {0, 0, S, 0, 0};
 
     priority_queue<Step, vector<Step>, CompareSteps> q;
     q.push(startingEast);
@@ -132,30 +126,51 @@ int getLeastHeatLoss(const __unique_if<std::__1::unique_ptr<int[]>[]>::__unique_
     visited.insert(cacheKey(startingEast));
 
     while (!q.empty()) {
-        auto &[x, y, vx, vy, heatLoss, steps, prio] = q.top();
+        const auto [x, y, dir, heatLoss, steps] = q.top();
         q.pop();
 
+        // cout << "X: " << x << " y: " << y << " dir: " << dir << " steps: " << steps << " heatLoss: " << heatLoss << endl;
         if (x == endX && y == endY) {
             if (steps < minSteps) continue;
             return heatLoss;
         }
 
-        std::tuple<int, int, int, int> nextSteps[3];
+        std::tuple<int, int, int> nextSteps[3];
 
-        nextSteps[0] = {x + vx, y + vy, vx, vy};
-        nextSteps[1] = {x + vy, y + vx, vy, vx};
-        nextSteps[2] = {x - vy, y - vx, -vy, -vx};
+        if (dir == N) {
+            nextSteps[0] = {x, y - 1, N};
+            nextSteps[1] = {x - 1, y, W};
+            nextSteps[2] = {x + 1, y, E};
+        }
+        if (dir == E) {
+            nextSteps[0] = {x + 1, y, E};
+            nextSteps[1] = {x, y + 1, S};
+            nextSteps[2] = {x, y - 1, N};
+        }
+        if (dir == S) {
+            nextSteps[0] = {x, y + 1, S};
+            nextSteps[1] = {x - 1, y, W};
+            nextSteps[2] = {x + 1, y, E};
+        }
+        if (dir == W) {
+            nextSteps[0] = {x - 1, y, W};
+            nextSteps[1] = {x, y + 1, S};
+            nextSteps[2] = {x, y - 1, N};
+        }
 
-        for (auto &[nx, ny, nvx, nvy]: nextSteps) {
-            if (steps > maxSteps - 1 && vx == nvx && vy == nvy) continue;
-            if (steps < minSteps && (vx != nvx || vy != nvy)) continue;
-            if (nx < 0 || ny < 0 || nx > COLS - 1 || ny > ROWS - 1) continue;
+        for (const auto [nx, ny, nDir]: nextSteps) {
+            if (nx < 0 || ny < 0 || nx > endX || ny > endY) continue;
+            if (steps > maxSteps - 1 && dir == nDir) continue;
+            if (steps < minSteps && dir != nDir) continue;
 
-            const int nhl = heatLoss + map[ny][nx];
-            const int nSteps = (nvx == vx && nvy == vy) ? steps + 1 : 1;
-            const int nPrio = nhl;
+            // const int nPrio = heatLoss + map[ny][nx] + (endX - nx + endY - ny);
 
-            Step next = {nx, ny, nvx, nvy, nhl, nSteps, nPrio};
+            Step next = {
+                    nx,
+                    ny,
+                    nDir,
+                    (heatLoss + map[ny][nx]),
+                    (dir == nDir ? steps + 1 : 1)};
 
             if (auto key = cacheKey(next); visited.find(key) == visited.end()) {
                 visited.insert(key);
@@ -167,7 +182,7 @@ int getLeastHeatLoss(const __unique_if<std::__1::unique_ptr<int[]>[]>::__unique_
     return -1;
 }
 
-void parseMap(std::unique_ptr<std::unique_ptr<int[]>[]> &map, int rows, int cols) {
+void parseMap(std::unique_ptr<std::unique_ptr<int[]>[]> &map) {
     ifstream file(FILE);
 
     if (!file.is_open()) {
